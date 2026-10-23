@@ -2,7 +2,6 @@ package com.years.progress
 
 import android.app.Activity
 import android.app.AlertDialog
-import android.app.DatePickerDialog
 import android.graphics.Color
 import android.graphics.drawable.GradientDrawable
 import android.os.Bundle
@@ -15,6 +14,7 @@ import android.widget.LinearLayout
 import android.widget.NumberPicker
 import android.widget.Switch
 import android.widget.TextView
+import android.widget.Toast
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Locale
@@ -147,21 +147,85 @@ class SettingsActivity : Activity() {
 
     private fun openBirthPicker() {
         val c = Calendar.getInstance().apply { timeInMillis = birthdayMillis }
-        val picker = DatePickerDialog(
-            this,
-            { _, y, m, d ->
-                birthdayMillis = Calendar.getInstance().apply {
+        val now = Calendar.getInstance()
+        val density = resources.displayMetrics.density
+        val dp = { v: Int -> (v * density).toInt() }
+
+        // 年/月/日三列数字滚轮，年份可直接滑到任意一年
+        fun makeCol(title: String): Pair<LinearLayout, NumberPicker> {
+            val col = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                gravity = Gravity.CENTER_HORIZONTAL
+            }
+            col.addView(TextView(this).apply {
+                text = title
+                textSize = 14f
+                gravity = Gravity.CENTER
+            }, LinearLayout.LayoutParams(dp(90), dp(34)))
+            val np = NumberPicker(this).apply {
+                minValue = 1
+                maxValue = 31
+                wrapSelectorWheel = false
+            }
+            col.addView(np, LinearLayout.LayoutParams(dp(90), dp(150)))
+            return col to np
+        }
+
+        val (colY, npYear) = makeCol("年")
+        val (colM, npMonth) = makeCol("月")
+        val (colD, npDay) = makeCol("日")
+
+        npYear.minValue = 1900
+        npYear.maxValue = now.get(Calendar.YEAR)
+        npYear.value = c.get(Calendar.YEAR)
+        npMonth.value = c.get(Calendar.MONTH) + 1
+        npDay.value = c.get(Calendar.DAY_OF_MONTH)
+
+        // 年/月变化时联动当月最大天数，避免 2月30日 这类非法日期
+        fun updateDayMax() {
+            val cal = Calendar.getInstance().apply {
+                clear()
+                set(npYear.value, npMonth.value - 1, 1)
+            }
+            npDay.maxValue = cal.getActualMaximum(Calendar.DAY_OF_MONTH)
+            if (npDay.value > npDay.maxValue) npDay.value = npDay.maxValue
+        }
+        npYear.setOnValueChangedListener { _, _, _ -> updateDayMax() }
+        npMonth.setOnValueChangedListener { _, _, _ -> updateDayMax() }
+        updateDayMax()
+
+        val row = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER
+        }
+        row.addView(colY, LinearLayout.LayoutParams(dp(96), LinearLayout.LayoutParams.WRAP_CONTENT))
+        row.addView(colM, LinearLayout.LayoutParams(dp(96), LinearLayout.LayoutParams.WRAP_CONTENT))
+        row.addView(colD, LinearLayout.LayoutParams(dp(96), LinearLayout.LayoutParams.WRAP_CONTENT))
+
+        AlertDialog.Builder(this)
+            .setTitle("选择出生日期")
+            .setView(row)
+            .setPositiveButton("确定") { _, _ ->
+                val chosen = Calendar.getInstance().apply {
                     clear()
-                    set(y, m, d)
-                }.timeInMillis
+                    set(npYear.value, npMonth.value - 1, npDay.value)
+                }
+                var t = chosen.timeInMillis
+                if (t > System.currentTimeMillis()) {
+                    // 不允许晚于今天：截断到今天并提示
+                    t = Calendar.getInstance().apply {
+                        set(Calendar.HOUR_OF_DAY, 0); set(Calendar.MINUTE, 0)
+                        set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0)
+                    }.timeInMillis
+                    Toast.makeText(this, "出生日期不能晚于今天，已调整为今天", Toast.LENGTH_SHORT).show()
+                }
+                birthdayMillis = t
                 YearPrefs.saveBirthday(this, birthdayMillis)
                 updateBirthVal()
                 refreshPreview()
-            },
-            c.get(Calendar.YEAR), c.get(Calendar.MONTH), c.get(Calendar.DAY_OF_MONTH)
-        )
-        picker.datePicker.maxDate = System.currentTimeMillis()
-        picker.show()
+            }
+            .setNegativeButton("取消", null)
+            .show()
     }
 
     private fun updateBirthVal() {
