@@ -33,24 +33,16 @@ jobs:
           chmod +x gradlew
           ./gradlew assembleDebug --console=plain
 
-      - name: Delete old 'latest' release and tag
+      - name: Create or update 'latest' release and upload APK
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          set +e
-          RELEASE_ID=$(gh api repos/${{ github.repository }}/releases/tags/latest --jq '.id' 2>/dev/null)
-          if [ -n "$RELEASE_ID" ]; then
-            gh api -X DELETE repos/${{ github.repository }}/releases/$RELEASE_ID
+          if gh release view latest >/dev/null 2>&1; then
+            gh release upload latest app/build/outputs/apk/debug/app-debug.apk --clobber
+          else
+            gh release create latest \
+              app/build/outputs/apk/debug/app-debug.apk \
+              --title "最新 APK" \
+              --notes "每次推送 main 分支后自动构建并上传的最新 APK（Debug）" \
+              --target ${{ github.sha }}
           fi
-          gh api -X DELETE repos/${{ github.repository }}/git/refs/tags/latest 2>/dev/null
-          exit 0
-
-      - name: Create 'latest' release and upload APK
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          gh release create latest \
-            app/build/outputs/apk/debug/app-debug.apk \
-            --title "最新 APK" \
-            --notes "每次推送 main 分支后自动构建并上传的最新 APK（Debug）" \
-            --target ${{ github.sha }}
