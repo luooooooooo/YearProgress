@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- 白色圆角卡片底 -->
+    <path
+        android:pathData="M8,0 L100,0 A8,8 0 0 1 108,8 L108,100 A8,8 0 0 1 100,108 L8,108 A8,8 0 0 1 0,100 L0,8 A8,8 0 0 1 8,0 Z"
+        android:fillColor="#FFFFFF" />
+
+    <!-- 标题条 -->
+    <path
+        android:pathData="M10,14 L42,14 L42,19 L10,19 Z"
+        android:fillColor="#9E9E9E" />
+
+    <!-- 左侧点阵（示意） -->
+    <group>
+        <path android:pathData="M12,28 m-2.5,0 a2.5,2.5 0 1 0 5,0 a2.5,2.5 0 1 0 -5,0" android:fillColor="#E53935" />
+        <path android:pathData="M24,28 m-2.5,0 a2.5,2.5 0 1 0 5,0 a2.5,2.5 0 1 0 -5,0" android:fillColor="#E53935" />
+        <path android:pathData="M36,28 m-2.5,0 a2.5,2.5 0 1 0 5,0 a2.5,2.5 0 1 0 -5,0" android:fillColor="#E53935" />
+        <path android:pathData="M48,28 m-2.5,0 a2.5,2.5 0 1 0 5,0 a2.5,2.5 0 1 0 -5,0" android:fillColor="#E53935" />
+        <path android:pathData="M60,28 m-2.5,0 a2.5,2.5 0 1 0 5,0 a2.5,2.5 0 1 0 -5,0" android:fillColor="#E53935" />
+        <path android:pathData="M72,28 m-2.5,0 a2.5,2.5 0 1 0 5,0 a2.5,2.5 0 1 0 -5,0" android:fillColor="#BDBDBD" />
+        <path android:pathData="M84,28 m-2.5,0 a2.5,2.5 0 1 0 5,0 a2.5,2.5 0 1 0 -5,0" android:fillColor="#BDBDBD" />
+    </group>
+    <group>
+        <path android:pathData="M12,40 m-2.5,0 a2.5,2.5 0 1 0 5,0 a2.5,2.5 0 1 0 -5,0" android:fillColor="#E53935" />
+        <path android:pathData="M24,40 m-2.5,0 a2.5,2.5 0 1 0 5,0 a2.5,2.5 0 1 0 -5,0" android:fillColor="#E53935" />
+        <path android:pathData="M36,40 m-2.5,0 a2.5,2.5 0 1 0 5,0 a2.5,2.5 0 1 0 -5,0" android:fillColor="#E53935" />
+        <path android:pathData="M48,40 m-2.5,0 a2.5,2.5 0 1 0 5,0 a2.5,2.5 0 1 0 -5,0" android:fillColor="#E53935" />
+        <path android:pathData="M60,40 m-2.5,0 a2.5,2.5 0 1 0 5,0 a2.5,2.5 0 1 0 -5,0" android:fillColor="#BDBDBD" />
+        <path android:pathData="M72,40 m-2.5,0 a2.5,2.5 0 1 0 5,0 a2.5,2.5 0 1 0 -5,0" android:fillColor="#BDBDBD" />
+        <path android:pathData="M84,40 m-2.5,0 a2.5,2.5 0 1 0 5,0 a2.5,2.5 0 1 0 -5,0" android:fillColor="#BDBDBD" />
+    </group>
+    <group>
+        <path android:pathData="M12,52 m-2.5,0 a2.5,2.5 0 1 0 5,0 a2.5,2.5 0 1 0 -5,0" android:fillColor="#E53935" />
+        <path android:pathData="M24,52 m-2.5,0 a2.5,2.5 0 1 0 5,0 a2.5,2.5 0 1 0 -5,0" android:fillColor="#BDBDBD" />
+        <path android:pathData="M36,52 m-2.5,0 a2.5,2.5 0 1 0 5,0 a2.5,2.5 0 1 0 -5,0" android:fillColor="#BDBDBD" />
+        <path android:pathData="M48,52 m-2.5,0 a2.5,2.5 0 1 0 5,0 a2.5,2.5 0 1 0 -5,0" android:fillColor="#BDBDBD" />
+        <path android:pathData="M60,52 m-2.5,0 a2.5,2.5 0 1 0 5,0 a2.5,2.5 0 1 0 -5,0" android:fillColor="#BDBDBD" />
+        <path android:pathData="M72,52 m-2.5,0 a2.5,2.5 0 1 0 5,0 a2.5,2.5 0 1 0 -5,0" android:fillColor="#BDBDBD" />
+        <path android:pathData="M84,52 m-2.5,0 a2.5,2.5 0 1 0 5,0 a2.5,2.5 0 1 0 -5,0" android:fillColor="#BDBDBD" />
+    </group>
+
+    <!-- 右侧文字（示意） -->
+    <path android:pathData="M66,30 L94,30 L94,42 L66,42 Z" android:fillColor="#212121" />
+    <path android:pathData="M78,46 L94,46 L94,54 L78,54 Z" android:fillColor="#E53935" />
+    <path android:pathData="M78,58 L94,58 L94,64 L78,64 Z" android:fillColor="#4CAF50" />
+
+</vector>
