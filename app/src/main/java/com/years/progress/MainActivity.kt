@@ -135,21 +135,22 @@ class MainActivity : Activity() {
         tvCutoff.text = "截止 ${sdf.format(now.time)}"
     }
 
-    /** 人生进度：年龄(10位小数) / 已过百分比(按有效寿命,封顶100%) / 320季点 / 进度行 / 截止时间。
-     *  有效寿命 = 预期寿命 − 扣减量之和；扣减量按用户口径：
-     *  减去睡觉 = 已过年龄 × 1/3；减去上班 = 剩余时间(预期−年龄) × 1/3；
-     *  减去低质量 = 剩余时间 × 15%。 */
+    /** 人生进度：年龄(10位小数) / 已过百分比 / 320季点 / 进度行 / 截止时间。
+     *  扣减口径（三个开关算法一致）：剩余寿命 = 预期寿命 − 当前年龄；
+     *  扣减 = 剩余寿命 × 比例（睡觉1/3、上班1/3、低质量15%）；
+     *  有效剩余 = 剩余寿命 − 扣减之和；点阵/已过百分比 = 当前年龄 ÷ (当前年龄 + 有效剩余)，
+     *  不开任何开关时退化为 当前年龄 ÷ 预期寿命。 */
     private fun updateLife(now: Calendar) {
         val age = calcAge(YearPrefs.birthday(this), now)
         val expect = YearPrefs.expect(this)
-        val remainRaw = expect - age
-        val ded = (if (YearPrefs.dedSleep(this)) age / 3.0 else 0.0) +
-                (if (YearPrefs.dedWork(this)) remainRaw / 3.0 else 0.0) +
-                (if (YearPrefs.dedLowq(this)) remainRaw * 0.15 else 0.0)
-        val eff = (expect - ded).coerceAtLeast(0.0001)
-        val pct = min(age / eff * 100.0, 100.0)
-        val filled = min((age / eff * YearPrefs.LIFE_DOT_TOTAL).roundToInt(), YearPrefs.LIFE_DOT_TOTAL)
-        val remain = (eff - age).coerceAtLeast(0.0)
+        val remain = (expect - age).coerceAtLeast(0.0)
+        val ded = (if (YearPrefs.dedSleep(this)) remain / 3.0 else 0.0) +
+                (if (YearPrefs.dedWork(this)) remain / 3.0 else 0.0) +
+                (if (YearPrefs.dedLowq(this)) remain * 0.15 else 0.0)
+        val effRemain = (remain - ded).coerceAtLeast(0.0)
+        val effTotal = (age + effRemain).coerceAtLeast(0.0001)
+        val pct = min(age / effTotal * 100.0, 100.0)
+        val filled = min((age / effTotal * YearPrefs.LIFE_DOT_TOTAL).roundToInt(), YearPrefs.LIFE_DOT_TOTAL)
 
         tvTitle.text = String.format(Locale.US, "%.10f岁", age)
         tvTitle.textSize = 28f
@@ -164,7 +165,7 @@ class MainActivity : Activity() {
         dotView.setFilledColor(color)
 
         tvProgress.text = when (mode) {
-            YearPrefs.MODE_REMAINING -> "进度 剩余 ${String.format(Locale.US, "%.2f", remain)} 年 / $expect 年"
+            YearPrefs.MODE_REMAINING -> "进度 剩余 ${String.format(Locale.US, "%.2f", effRemain)} 年 / $expect 年"
             else -> "进度 已过 ${String.format(Locale.US, "%.2f", age)} 年 / $expect 年"
         }
 
