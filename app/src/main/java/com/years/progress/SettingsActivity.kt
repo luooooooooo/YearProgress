@@ -437,12 +437,13 @@ class SettingsActivity : Activity() {
         if (mode == YearPrefs.MODE_LIFE) {
             val age = calcAge(birthdayMillis, now)
             val expect = YearPrefs.expect(this)
-            val coef = 1.0 -
-                    (if (swSleep.isChecked) 1.0 / 3.0 else 0.0) -
-                    (if (swWork.isChecked) 1.0 / 3.0 else 0.0) -
-                    (if (swLowq.isChecked) 0.15 else 0.0)
-            val eff = expect * coef
-            val remain = (expect - age) * coef
+            // 扣减口径与主界面一致：睡觉=已过年龄×1/3；上班/低质量=(预期−年龄)×1/3 / ×15%
+            val remainRaw = expect - age
+            val ded = (if (swSleep.isChecked) age / 3.0 else 0.0) +
+                    (if (swWork.isChecked) remainRaw / 3.0 else 0.0) +
+                    (if (swLowq.isChecked) remainRaw * 0.15 else 0.0)
+            val eff = (expect - ded).coerceAtLeast(0.0001)
+            val remain = (eff - age).coerceAtLeast(0.0)
             previewLine.text = when (selectedProgressMode) {
                 YearPrefs.MODE_REMAINING ->
                     "预览：进度 剩余 ${String.format(Locale.US, "%.2f", remain)} 年 / $expect 年"

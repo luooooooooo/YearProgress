@@ -135,18 +135,21 @@ class MainActivity : Activity() {
         tvCutoff.text = "截止 ${sdf.format(now.time)}"
     }
 
-    /** 人生进度：年龄(10位小数) / 已过百分比(按有效寿命,封顶100%) / 320季点 / 进度行 / 截止时间。 */
+    /** 人生进度：年龄(10位小数) / 已过百分比(按有效寿命,封顶100%) / 320季点 / 进度行 / 截止时间。
+     *  有效寿命 = 预期寿命 − 扣减量之和；扣减量按用户口径：
+     *  减去睡觉 = 已过年龄 × 1/3；减去上班 = 剩余时间(预期−年龄) × 1/3；
+     *  减去低质量 = 剩余时间 × 15%。 */
     private fun updateLife(now: Calendar) {
         val age = calcAge(YearPrefs.birthday(this), now)
         val expect = YearPrefs.expect(this)
-        val coef = 1.0 -
-                (if (YearPrefs.dedSleep(this)) 1.0 / 3.0 else 0.0) -
-                (if (YearPrefs.dedWork(this)) 1.0 / 3.0 else 0.0) -
-                (if (YearPrefs.dedLowq(this)) 0.15 else 0.0)
-        val eff = expect * coef
+        val remainRaw = expect - age
+        val ded = (if (YearPrefs.dedSleep(this)) age / 3.0 else 0.0) +
+                (if (YearPrefs.dedWork(this)) remainRaw / 3.0 else 0.0) +
+                (if (YearPrefs.dedLowq(this)) remainRaw * 0.15 else 0.0)
+        val eff = (expect - ded).coerceAtLeast(0.0001)
         val pct = min(age / eff * 100.0, 100.0)
         val filled = min((age / eff * YearPrefs.LIFE_DOT_TOTAL).roundToInt(), YearPrefs.LIFE_DOT_TOTAL)
-        val remain = (expect - age) * coef
+        val remain = (eff - age).coerceAtLeast(0.0)
 
         tvTitle.text = String.format(Locale.US, "%.10f岁", age)
         tvTitle.textSize = 28f
