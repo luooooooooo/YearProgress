@@ -1,49 +1,255 @@
 package com.years.progress
 
 import android.app.Activity
+import android.app.AlertDialog
+import android.app.DatePickerDialog
 import android.graphics.Color
 import android.graphics.drawable.GradientDrawable
 import android.os.Bundle
+import android.text.InputType
 import android.view.Gravity
 import android.view.View
+import android.view.ViewGroup
+import android.widget.EditText
 import android.widget.LinearLayout
+import android.widget.NumberPicker
+import android.widget.Switch
 import android.widget.TextView
+import java.text.SimpleDateFormat
 import java.util.Calendar
+import java.util.Locale
+import kotlin.math.floor
+import kotlin.math.roundToInt
 
 /**
- * 设置页：11 种点阵颜色（10 莫兰迪 + 原红色）、进度显示方式（已过/剩余）。
+ * 设置页（年度 / 人生双模式，各设置项独立存储）：
+ *  - 进度类型：年度进度 / 人生进度 切换
+ *  - 人生专属：出生日期（默认今天）、预计寿命（[当前年龄,800]，手输+滑动）、
+ *    减去睡觉/上班/低质量时间 三个开关
+ *  - 点阵颜色：12 色（按当前模式独立存储）
+ *  - 进度显示：已过 / 剩余（按当前模式独立存储）
  * 选择即自动保存，并广播通知桌面小组件同步刷新。
  */
 class SettingsActivity : Activity() {
 
+    private lateinit var modeTypeRow: LinearLayout
+    private lateinit var lifeSection: LinearLayout
+    private lateinit var birthVal: TextView
+    private lateinit var expectVal: TextView
+    private lateinit var swSleep: Switch
+    private lateinit var swWork: Switch
+    private lateinit var swLowq: Switch
     private lateinit var colorGrid: LinearLayout
+    private lateinit var colorHint: TextView
     private lateinit var modeRow: LinearLayout
+    private lateinit var progressHint: TextView
     private lateinit var previewLine: TextView
 
-    private var selectedColor = YearPrefs.DEFAULT_COLOR
-    private var selectedMode = YearPrefs.MODE_ELAPSED
+    private var mode = YearPrefs.MODE_YEAR
+    private var selectedColor = YearPrefs.DEFAULT_COLOR_YEAR
+    private var selectedProgressMode = YearPrefs.MODE_REMAINING
+    private var birthdayMillis = 0L
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_settings)
 
+        modeTypeRow = findViewById(R.id.modeTypeRow)
+        lifeSection = findViewById(R.id.lifeSection)
+        birthVal = findViewById(R.id.birthVal)
+        expectVal = findViewById(R.id.expectVal)
+        swSleep = findViewById(R.id.swSleep)
+        swWork = findViewById(R.id.swWork)
+        swLowq = findViewById(R.id.swLowq)
         colorGrid = findViewById(R.id.colorGrid)
+        colorHint = findViewById(R.id.colorHint)
         modeRow = findViewById(R.id.modeRow)
+        progressHint = findViewById(R.id.progressHint)
         previewLine = findViewById(R.id.previewLine)
 
-        selectedColor = YearPrefs.dotColor(this)
-        selectedMode = YearPrefs.progressMode(this)
+        mode = YearPrefs.mode(this)
+        birthdayMillis = YearPrefs.birthday(this)
+        selectedColor = YearPrefs.dotColor(this, mode)
+        selectedProgressMode = YearPrefs.progressMode(this, mode)
 
+        swSleep.isChecked = YearPrefs.dedSleep(this)
+        swWork.isChecked = YearPrefs.dedWork(this)
+        swLowq.isChecked = YearPrefs.dedLowq(this)
+
+        buildModeTypeRow()
+        buildBirthRow()
+        buildExpectRow()
+        bindSwitches()
+        renderLifeSection()
         buildColorGrid()
         buildModeRow()
         refreshPreview()
     }
 
-    /** 每行 4 个颜色圆点，自动换行。 */
+    // ===== 进度类型切换 =====
+
+    private fun buildModeTypeRow() {
+        modeTypeRow.removeAllViews()
+        val density = resources.displayMetrics.density
+        val options = listOf(
+            Pair(YearPrefs.MODE_YEAR, "年度进度"),
+            Pair(YearPrefs.MODE_LIFE, "人生进度")
+        )
+        for ((m, label) in options) {
+            val btn = TextView(this).apply {
+                text = label
+                textSize = 15f
+                gravity = Gravity.CENTER
+                val lp = LinearLayout.LayoutParams(0, (48 * density).toInt(), 1f)
+                lp.marginEnd = (10 * density).toInt()
+                layoutParams = lp
+            }
+            btn.setOnClickListener {
+                mode = m
+                YearPrefs.saveMode(this, mode)
+                selectedColor = YearPrefs.dotColor(this, mode)
+                selectedProgressMode = YearPrefs.progressMode(this, mode)
+                birthdayMillis = YearPrefs.birthday(this)
+                swSleep.isChecked = YearPrefs.dedSleep(this)
+                swWork.isChecked = YearPrefs.dedWork(this)
+                swLowq.isChecked = YearPrefs.dedLowq(this)
+                buildModeTypeRow()
+                renderLifeSection()
+                buildColorGrid()
+                buildModeRow()
+                refreshPreview()
+            }
+            val selected = m == mode
+            val d = GradientDrawable().apply {
+                shape = GradientDrawable.RECTANGLE
+                cornerRadius = (12 * density).toInt().toFloat()
+                setColor(if (selected) 0xFF202020.toInt() else 0xFFFFFFFF.toInt())
+                setStroke((1 * density).toInt(), 0xFFBDBDBD.toInt())
+            }
+            btn.background = d
+            btn.setTextColor(if (selected) Color.WHITE else 0xFF424242.toInt())
+            modeTypeRow.addView(btn)
+        }
+    }
+
+    private fun renderLifeSection() {
+        lifeSection.visibility = if (mode == YearPrefs.MODE_LIFE) View.VISIBLE else View.GONE
+        updateBirthVal()
+        updateExpectVal()
+    }
+
+    // ===== 出生日期 =====
+
+    private fun buildBirthRow() {
+        val row = findViewById<LinearLayout>(R.id.birthRow)
+        row.setOnClickListener { openBirthPicker() }
+    }
+
+    private fun openBirthPicker() {
+        val c = Calendar.getInstance().apply { timeInMillis = birthdayMillis }
+        val picker = DatePickerDialog(
+            this,
+            { _, y, m, d ->
+                birthdayMillis = Calendar.getInstance().apply {
+                    clear()
+                    set(y, m, d)
+                }.timeInMillis
+                YearPrefs.saveBirthday(this, birthdayMillis)
+                updateBirthVal()
+                refreshPreview()
+            },
+            c.get(Calendar.YEAR), c.get(Calendar.MONTH), c.get(Calendar.DAY_OF_MONTH)
+        )
+        picker.datePicker.maxDate = System.currentTimeMillis()
+        picker.show()
+    }
+
+    private fun updateBirthVal() {
+        val fmt = SimpleDateFormat("yyyy年M月d日", Locale.getDefault())
+        birthVal.text = fmt.format(Calendar.getInstance().apply { timeInMillis = birthdayMillis }.time)
+    }
+
+    // ===== 预计寿命（手输 + 滑动，范围 [当前年龄, 800]） =====
+
+    private fun buildExpectRow() {
+        val row = findViewById<LinearLayout>(R.id.expectRow)
+        row.setOnClickListener { openExpectPicker() }
+    }
+
+    private fun openExpectPicker() {
+        val age = calcAge(YearPrefs.birthday(this), Calendar.getInstance())
+        val minVal = floor(age).toInt().coerceAtLeast(1)
+        val cur = YearPrefs.expect(this).coerceIn(minVal, YearPrefs.MAX_EXPECT)
+
+        val density = resources.displayMetrics.density
+        val content = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding((24 * density).toInt(), (16 * density).toInt(), (24 * density).toInt(), 0)
+        }
+
+        val input = EditText(this).apply {
+            hint = "手输预计寿命（$minVal ~ ${YearPrefs.MAX_EXPECT} 岁）"
+            inputType = InputType.TYPE_CLASS_NUMBER
+            textSize = 16f
+            setText(cur.toString())
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+            )
+        }
+        content.addView(input)
+
+        val picker = NumberPicker(this).apply {
+            minValue = minVal
+            maxValue = YearPrefs.MAX_EXPECT
+            value = cur
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+            )
+        }
+        content.addView(picker)
+
+        AlertDialog.Builder(this)
+            .setTitle("预计寿命")
+            .setMessage("最低为当前年龄 $minVal 岁，最高 800 岁")
+            .setView(content)
+            .setPositiveButton("确定") { _, _ ->
+                val parsed = input.text.toString().trim().toIntOrNull()
+                val value = parsed ?: picker.value
+                YearPrefs.saveExpect(this, value.coerceIn(minVal, YearPrefs.MAX_EXPECT))
+                updateExpectVal()
+                refreshPreview()
+            }
+            .setNegativeButton("取消", null)
+            .show()
+    }
+
+    private fun updateExpectVal() {
+        expectVal.text = "${YearPrefs.expect(this)}岁"
+    }
+
+    // ===== 有效时间开关 =====
+
+    private fun bindSwitches() {
+        fun saveAll() {
+            YearPrefs.saveDeduction(this, swSleep.isChecked, swWork.isChecked, swLowq.isChecked)
+            refreshPreview()
+            YearPrefs.notifyWidget(this)
+        }
+        swSleep.setOnCheckedChangeListener { _, _ -> saveAll() }
+        swWork.setOnCheckedChangeListener { _, _ -> saveAll() }
+        swLowq.setOnCheckedChangeListener { _, _ -> saveAll() }
+    }
+
+    // ===== 点阵颜色（按模式独立） =====
+
     private fun buildColorGrid() {
         colorGrid.removeAllViews()
         val density = resources.displayMetrics.density
         val perRow = 4
+        val modeName = if (mode == YearPrefs.MODE_LIFE) "人生进度" else "年度进度"
+        colorHint.text = "选择后，App 和桌面小组件的点阵与百分比文字会同步变色（当前为「$modeName」的颜色，两种进度独立调节）"
 
         for (i in PRESET_COLORS.indices step perRow) {
             val row = LinearLayout(this).apply {
@@ -57,7 +263,6 @@ class SettingsActivity : Activity() {
             for (j in i until end) {
                 row.addView(buildColorCell(PRESET_COLORS[j], density))
             }
-            // 补足一行空位，保持对齐
             for (k in end until i + perRow) {
                 val spacer = View(this)
                 spacer.layoutParams = LinearLayout.LayoutParams(0, 1, 1f)
@@ -107,23 +312,31 @@ class SettingsActivity : Activity() {
 
         cell.setOnClickListener {
             selectedColor = option.color
-            YearPrefs.save(this@SettingsActivity, selectedColor, selectedMode)
-            YearPrefs.notifyWidget(this@SettingsActivity)
+            YearPrefs.save(this, mode, selectedColor, selectedProgressMode)
+            YearPrefs.notifyWidget(this)
             buildColorGrid()
             refreshPreview()
         }
         return cell
     }
 
-    /** 两个选择按钮：已过多少天 / 剩余多少天。 */
+    // ===== 进度显示（按模式独立） =====
+
     private fun buildModeRow() {
         modeRow.removeAllViews()
         val density = resources.displayMetrics.density
+        val isYear = mode == YearPrefs.MODE_YEAR
+        val unit = if (isYear) "天" else "年"
+        progressHint.text = if (isYear)
+            "选择进度行显示「已过多少天」还是「剩余多少天」（与人生进度独立）"
+        else
+            "选择进度行显示「已过多少年」还是「剩余多少年」（与年度进度独立）"
+
         val modes = listOf(
-            Triple(YearPrefs.MODE_ELAPSED, "已过多少天", "进度 已过"),
-            Triple(YearPrefs.MODE_REMAINING, "剩余多少天", "进度 剩余")
+            Pair(YearPrefs.MODE_ELAPSED, "已过多少$unit"),
+            Pair(YearPrefs.MODE_REMAINING, "剩余多少$unit")
         )
-        for ((mode, label, _) in modes) {
+        for ((pm, label) in modes) {
             val btn = TextView(this).apply {
                 text = label
                 textSize = 15f
@@ -133,13 +346,13 @@ class SettingsActivity : Activity() {
                 layoutParams = lp
             }
             btn.setOnClickListener {
-                selectedMode = mode
-                YearPrefs.save(this@SettingsActivity, selectedColor, selectedMode)
-                YearPrefs.notifyWidget(this@SettingsActivity)
+                selectedProgressMode = pm
+                YearPrefs.save(this, mode, selectedColor, selectedProgressMode)
+                YearPrefs.notifyWidget(this)
                 buildModeRow()
                 refreshPreview()
             }
-            val selected = mode == selectedMode
+            val selected = pm == selectedProgressMode
             val d = GradientDrawable().apply {
                 shape = GradientDrawable.RECTANGLE
                 cornerRadius = (12 * density).toInt().toFloat()
@@ -152,16 +365,62 @@ class SettingsActivity : Activity() {
         }
     }
 
-    /** 设置页底部实时预览当前选择的效果。 */
+    // ===== 预览 =====
+
     private fun refreshPreview() {
         val now = Calendar.getInstance()
-        val day = now.get(Calendar.DAY_OF_YEAR)
-        val total = 365
-        val text = when (selectedMode) {
-            YearPrefs.MODE_REMAINING -> "进度 剩余 ${total - day} 天 / $total 天"
-            else -> "进度 已过 $day 天 / $total 天"
-        }
-        previewLine.text = text
         previewLine.setTextColor(selectedColor)
+        if (mode == YearPrefs.MODE_LIFE) {
+            val age = calcAge(birthdayMillis, now)
+            val expect = YearPrefs.expect(this)
+            val coef = 1.0 -
+                    (if (swSleep.isChecked) 1.0 / 3.0 else 0.0) -
+                    (if (swWork.isChecked) 1.0 / 3.0 else 0.0) -
+                    (if (swLowq.isChecked) 0.15 else 0.0)
+            val eff = expect * coef
+            val remain = (expect - age) * coef
+            previewLine.text = when (selectedProgressMode) {
+                YearPrefs.MODE_REMAINING ->
+                    "预览：进度 剩余 ${String.format(Locale.US, "%.2f", remain)} 年 / $expect 年"
+                else ->
+                    "预览：进度 已过 ${String.format(Locale.US, "%.2f", age)} 年 / $expect 年"
+            }
+        } else {
+            val day = now.get(Calendar.DAY_OF_YEAR)
+            val total = 365
+            previewLine.text = when (selectedProgressMode) {
+                YearPrefs.MODE_REMAINING -> "预览：进度 剩余 ${total - day} 天 / $total 天"
+                else -> "预览：进度 已过 $day 天 / $total 天"
+            }
+        }
+    }
+
+    /** 年龄 = 完整年数 + 距最近一次生日经过的时间 / 该生日所在年的实际天数。 */
+    private fun calcAge(birthMillis: Long, now: Calendar): Double {
+        val b = Calendar.getInstance().apply { timeInMillis = birthMillis }
+        val bY = b.get(Calendar.YEAR)
+        val bM = b.get(Calendar.MONTH)
+        val bD = b.get(Calendar.DAY_OF_MONTH)
+        val nowY = now.get(Calendar.YEAR)
+
+        val thisYearBD = Calendar.getInstance().apply {
+            clear()
+            set(nowY, bM, bD)
+        }
+        val lastBD: Calendar
+        val ageYears: Int
+        if (!now.before(thisYearBD)) {
+            lastBD = thisYearBD
+            ageYears = nowY - bY
+        } else {
+            lastBD = Calendar.getInstance().apply {
+                clear()
+                set(nowY - 1, bM, bD)
+            }
+            ageYears = nowY - bY - 1
+        }
+        val daysInYear = lastBD.getActualMaximum(Calendar.DAY_OF_YEAR)
+        val fraction = (now.timeInMillis - lastBD.timeInMillis) / (daysInYear * 86400000.0)
+        return ageYears + fraction
     }
 }

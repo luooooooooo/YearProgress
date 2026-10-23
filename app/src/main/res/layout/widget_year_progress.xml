@@ -18,14 +18,14 @@
             android:id="@+id/wDots"
             android:layout_width="0dp"
             android:layout_height="match_parent"
-            android:layout_weight="1.35"
+            android:layout_weight="1.4"
             android:scaleType="fitCenter"
             android:contentDescription="年度进度点阵" />
 
         <LinearLayout
             android:layout_width="0dp"
             android:layout_height="match_parent"
-            android:layout_weight="0.65"
+            android:layout_weight="0.6"
             android:layout_marginStart="4dp"
             android:orientation="vertical"
             android:gravity="center_vertical|end">

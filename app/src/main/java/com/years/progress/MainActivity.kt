@@ -8,19 +8,24 @@ import android.content.IntentFilter
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.text.TextUtils
 import android.widget.TextView
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Locale
+import kotlin.math.min
+import kotlin.math.roundToInt
 
 /**
- * 年度进度追踪器 —— 单界面。
- * 每秒根据系统当前时间实时重算“已过百分比 / 天数 / 截止时间”，
- * 因此在跨过凌晨 0 点时自动跳到下一天（进度自动 +1）。
+ * 年度 / 人生 双模式进度追踪器 —— 单界面。
+ * 每秒根据系统当前时间实时重算：
+ *  - 年度：已过百分比 / 天数 / 截止时间（跨零点自动 +1，跨年换年份）
+ *  - 人生：年龄（10 位小数）/ 已过百分比（按有效寿命）/ 320 季点 / 剩余或已过年数
+ * 两种模式的点阵颜色与进度显示方式在设置页独立调节，互不联动。
  */
 class MainActivity : Activity() {
 
-    private lateinit var tvYear: TextView
+    private lateinit var tvTitle: TextView
     private lateinit var tvPercent: TextView
     private lateinit var dotView: ProgressDotView
     private lateinit var tvProgress: TextView
@@ -47,14 +52,14 @@ class MainActivity : Activity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
-        tvYear = findViewById(R.id.tvYear)
+        tvTitle = findViewById(R.id.tvYear)
         tvPercent = findViewById(R.id.tvPercent)
         dotView = findViewById(R.id.dotView)
         tvProgress = findViewById(R.id.tvProgress)
         tvCutoff = findViewById(R.id.tvCutoff)
 
-        // 点击年份 → 进入设置页
-        tvYear.setOnClickListener {
+        // 点击标题 → 进入设置页
+        tvTitle.setOnClickListener {
             startActivity(Intent(this, SettingsActivity::class.java))
         }
 
@@ -89,26 +94,31 @@ class MainActivity : Activity() {
 
     private fun update() {
         val now = Calendar.getInstance()
+        if (YearPrefs.mode(this) == YearPrefs.MODE_LIFE) {
+            updateLife(now)
+        } else {
+            updateYear(now)
+        }
+    }
+
+    /** 年度进度：2026年 / 已过百分比 / 365点阵 / 进度行 / 截止时间。 */
+    private fun updateYear(now: Calendar) {
         val year = now.get(Calendar.YEAR)
         val dayOfYear = now.get(Calendar.DAY_OF_YEAR)
-        // 平年 365，闰年 366
         val daysInYear = now.getActualMaximum(Calendar.DAY_OF_YEAR)
 
-        // 今天已走过的时刻占全天比例
         val secondsToday = now.get(Calendar.HOUR_OF_DAY) * 3600L +
                 now.get(Calendar.MINUTE) * 60L +
                 now.get(Calendar.SECOND)
         val fraction = secondsToday / 86400.0
-
-        // 已过时间 = (今天是今年的第几天 - 1) + 今天已走的比例
         val elapsedDays = (dayOfYear - 1) + fraction
         val percent = elapsedDays / daysInYear * 100.0
 
-        tvYear.text = "${year}年"
+        tvTitle.text = "${year}年"
+        tvTitle.textSize = 46f
 
-        // 设置项：点阵颜色 + 进度显示方式
-        val color = YearPrefs.dotColor(this)
-        val mode = YearPrefs.progressMode(this)
+        val color = YearPrefs.dotColor(this, YearPrefs.MODE_YEAR)
+        val mode = YearPrefs.progressMode(this, YearPrefs.MODE_YEAR)
 
         tvPercent.text = "已过 ${String.format(Locale.US, "%.8f", percent)}%"
         tvPercent.setTextColor(color)
@@ -123,5 +133,68 @@ class MainActivity : Activity() {
 
         val sdf = SimpleDateFormat("yyyy.MM.dd HH:mm:ss", Locale.getDefault())
         tvCutoff.text = "截止 ${sdf.format(now.time)}"
+    }
+
+    /** 人生进度：年龄(10位小数) / 已过百分比(按有效寿命,封顶100%) / 320季点 / 进度行 / 截止时间。 */
+    private fun updateLife(now: Calendar) {
+        val age = calcAge(YearPrefs.birthday(this), now)
+        val expect = YearPrefs.expect(this)
+        val coef = 1.0 -
+                (if (YearPrefs.dedSleep(this)) 1.0 / 3.0 else 0.0) -
+                (if (YearPrefs.dedWork(this)) 1.0 / 3.0 else 0.0) -
+                (if (YearPrefs.dedLowq(this)) 0.15 else 0.0)
+        val eff = expect * coef
+        val pct = min(age / eff * 100.0, 100.0)
+        val filled = min((age / eff * YearPrefs.LIFE_DOT_TOTAL).roundToInt(), YearPrefs.LIFE_DOT_TOTAL)
+        val remain = (expect - age) * coef
+
+        tvTitle.text = String.format(Locale.US, "%.10f岁", age)
+        tvTitle.textSize = 28f
+
+        val color = YearPrefs.dotColor(this, YearPrefs.MODE_LIFE)
+        val mode = YearPrefs.progressMode(this, YearPrefs.MODE_LIFE)
+
+        tvPercent.text = String.format(Locale.US, "已过 %.5f%%", pct)
+        tvPercent.setTextColor(color)
+
+        dotView.setProgress(filled, YearPrefs.LIFE_DOT_TOTAL)
+        dotView.setFilledColor(color)
+
+        tvProgress.text = when (mode) {
+            YearPrefs.MODE_REMAINING -> "进度 剩余 ${String.format(Locale.US, "%.2f", remain)} 年 / $expect 年"
+            else -> "进度 已过 ${String.format(Locale.US, "%.2f", age)} 年 / $expect 年"
+        }
+
+        val sdf = SimpleDateFormat("yyyy.MM.dd HH:mm:ss", Locale.getDefault())
+        tvCutoff.text = "截止 ${sdf.format(now.time)}"
+    }
+
+    /** 年龄 = 完整年数 + 距最近一次生日经过的时间 / 该生日所在年的实际天数。 */
+    private fun calcAge(birthMillis: Long, now: Calendar): Double {
+        val b = Calendar.getInstance().apply { timeInMillis = birthMillis }
+        val bY = b.get(Calendar.YEAR)
+        val bM = b.get(Calendar.MONTH)
+        val bD = b.get(Calendar.DAY_OF_MONTH)
+        val nowY = now.get(Calendar.YEAR)
+
+        val thisYearBD = Calendar.getInstance().apply {
+            clear()
+            set(nowY, bM, bD)
+        }
+        val lastBD: Calendar
+        val ageYears: Int
+        if (!now.before(thisYearBD)) {
+            lastBD = thisYearBD
+            ageYears = nowY - bY
+        } else {
+            lastBD = Calendar.getInstance().apply {
+                clear()
+                set(nowY - 1, bM, bD)
+            }
+            ageYears = nowY - bY - 1
+        }
+        val daysInYear = lastBD.getActualMaximum(Calendar.DAY_OF_YEAR)
+        val fraction = (now.timeInMillis - lastBD.timeInMillis) / (daysInYear * 86400000.0)
+        return ageYears + fraction
     }
 }

@@ -57,9 +57,9 @@ class YearProgressWidgetProvider : AppWidgetProvider() {
         views.setTextViewText(R.id.wYear, year.toString())
         views.setTextViewText(R.id.wPercent, "${percent}%")
 
-        // 设置项：点阵颜色（含百分比文字同色）、进度显示方式（已过/剩余）
-        val color = YearPrefs.dotColor(context)
-        val mode = YearPrefs.progressMode(context)
+        // 设置项：点阵颜色（含百分比文字同色）、进度显示方式（已过/剩余）；小组件展示年度进度
+        val color = YearPrefs.dotColor(context, YearPrefs.MODE_YEAR)
+        val mode = YearPrefs.progressMode(context, YearPrefs.MODE_YEAR)
         val daysText = when (mode) {
             YearPrefs.MODE_REMAINING -> "剩余 ${total - dayOfYear}/$total"
             else -> "已过 $dayOfYear/$total"
@@ -75,8 +75,8 @@ class YearProgressWidgetProvider : AppWidgetProvider() {
         val innerH = minH - 24
         var areaAspect = 1.34f
         if (innerW > 0 && innerH > 0) {
-            // 4x2 卡片点阵区域宽高比约 1.2；过宽/过窄的取值视为无效，回退默认
-            val a = innerW * 1.35f / 2.0f / innerH
+            // 4x2 卡片点阵区域宽高比约 1.4；过宽/过窄的取值视为无效，回退默认
+            val a = innerW * 1.4f / 2.0f / innerH
             if (a in 1.0f..1.8f) areaAspect = a
         }
         android.util.Log.d("YearWidget", "opt minW=$minW minH=$minH areaAspect=$areaAspect")
@@ -107,7 +107,8 @@ class YearProgressWidgetProvider : AppWidgetProvider() {
         val cellH = cellW * cols / (rows * areaAspect)
         val w = (cols * cellW).toInt()
         val h = (rows * cellH).toInt()
-        val dotR = cellW * 0.46f
+        // 点径 = 列宽的一半（横向相邻点相切），点阵更饱满
+        val dotR = cellW * 0.5f
 
         val bmp = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bmp)
