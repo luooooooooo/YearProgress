@@ -1,0 +1,56 @@
+name: Build APK & Upload
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Cache Gradle
+        uses: actions/cache@v4
+        with:
+          path: ~/.gradle/caches
+          key: gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+          restore-keys: gradle-
+
+      - name: Build debug APK
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleDebug --console=plain
+
+      - name: Delete old 'latest' release and tag
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set +e
+          RELEASE_ID=$(gh api repos/${{ github.repository }}/releases/tags/latest --jq '.id' 2>/dev/null)
+          if [ -n "$RELEASE_ID" ]; then
+            gh api -X DELETE repos/${{ github.repository }}/releases/$RELEASE_ID
+          fi
+          gh api -X DELETE repos/${{ github.repository }}/git/refs/tags/latest 2>/dev/null
+          exit 0
+
+      - name: Create 'latest' release and upload APK
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create latest \
+            app/build/outputs/apk/debug/app-debug.apk \
+            --title "最新 APK" \
+            --notes "每次推送 main 分支后自动构建并上传的最新 APK（Debug）" \
+            --target ${{ github.sha }}
