@@ -58,6 +58,13 @@ class MainActivity : Activity() {
         tvProgress = findViewById(R.id.tvProgress)
         tvCutoff = findViewById(R.id.tvCutoff)
 
+        // 小组件点击进入：自动切换到对应模式（年度小组件→年度，人生小组件→人生）
+        intent?.getStringExtra(YearPrefs.EXTRA_OPEN_MODE)?.let { m ->
+            if (m == YearPrefs.MODE_LIFE || m == YearPrefs.MODE_YEAR) {
+                YearPrefs.saveMode(this, m)
+            }
+        }
+
         // 点击标题 → 进入设置页
         tvTitle.setOnClickListener {
             startActivity(Intent(this, SettingsActivity::class.java))
@@ -141,7 +148,7 @@ class MainActivity : Activity() {
      *  有效剩余 = 剩余寿命 − 扣减之和；点阵/已过百分比 = 当前年龄 ÷ (当前年龄 + 有效剩余)，
      *  不开任何开关时退化为 当前年龄 ÷ 预期寿命。 */
     private fun updateLife(now: Calendar) {
-        val age = calcAge(YearPrefs.birthday(this), now)
+        val age = YearPrefs.calcAge(YearPrefs.birthday(this), now)
         val expect = YearPrefs.expect(this)
         val remain = (expect - age).coerceAtLeast(0.0)
         val ded = (if (YearPrefs.dedSleep(this)) remain / 3.0 else 0.0) +
@@ -171,34 +178,5 @@ class MainActivity : Activity() {
 
         val sdf = SimpleDateFormat("yyyy.MM.dd HH:mm:ss", Locale.getDefault())
         tvCutoff.text = "截止 ${sdf.format(now.time)}"
-    }
-
-    /** 年龄 = 完整年数 + 距最近一次生日经过的时间 / 该生日所在年的实际天数。 */
-    private fun calcAge(birthMillis: Long, now: Calendar): Double {
-        val b = Calendar.getInstance().apply { timeInMillis = birthMillis }
-        val bY = b.get(Calendar.YEAR)
-        val bM = b.get(Calendar.MONTH)
-        val bD = b.get(Calendar.DAY_OF_MONTH)
-        val nowY = now.get(Calendar.YEAR)
-
-        val thisYearBD = Calendar.getInstance().apply {
-            clear()
-            set(nowY, bM, bD)
-        }
-        val lastBD: Calendar
-        val ageYears: Int
-        if (!now.before(thisYearBD)) {
-            lastBD = thisYearBD
-            ageYears = nowY - bY
-        } else {
-            lastBD = Calendar.getInstance().apply {
-                clear()
-                set(nowY - 1, bM, bD)
-            }
-            ageYears = nowY - bY - 1
-        }
-        val daysInYear = lastBD.getActualMaximum(Calendar.DAY_OF_YEAR)
-        val fraction = (now.timeInMillis - lastBD.timeInMillis) / (daysInYear * 86400000.0)
-        return ageYears + fraction
     }
 }

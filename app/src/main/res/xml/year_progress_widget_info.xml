@@ -9,5 +9,6 @@
     android:updatePeriodMillis="1800000"
     android:initialLayout="@layout/widget_year_progress"
     android:previewImage="@drawable/widget_preview"
+    android:label="@string/widget_name_year"
     android:resizeMode="horizontal|vertical"
     android:widgetCategory="home_screen" />

@@ -40,6 +40,38 @@ object YearPrefs {
 
     const val ACTION_SETTINGS_CHANGED = "com.years.progress.SETTINGS_CHANGED"
 
+    /** 小组件点击打开 App 时指定要显示的模式（year / life）。 */
+    const val EXTRA_OPEN_MODE = "open_mode"
+
+    /** 年龄 = 完整年数 + 距最近一次生日经过的时间 / 该生日所在年的实际天数。 */
+    fun calcAge(birthMillis: Long, now: Calendar): Double {
+        val b = Calendar.getInstance().apply { timeInMillis = birthMillis }
+        val bY = b.get(Calendar.YEAR)
+        val bM = b.get(Calendar.MONTH)
+        val bD = b.get(Calendar.DAY_OF_MONTH)
+        val nowY = now.get(Calendar.YEAR)
+
+        val thisYearBD = Calendar.getInstance().apply {
+            clear()
+            set(nowY, bM, bD)
+        }
+        val lastBD: Calendar
+        val ageYears: Int
+        if (!now.before(thisYearBD)) {
+            lastBD = thisYearBD
+            ageYears = nowY - bY
+        } else {
+            lastBD = Calendar.getInstance().apply {
+                clear()
+                set(nowY - 1, bM, bD)
+            }
+            ageYears = nowY - bY - 1
+        }
+        val daysInYear = lastBD.getActualMaximum(Calendar.DAY_OF_YEAR)
+        val fraction = (now.timeInMillis - lastBD.timeInMillis) / (daysInYear * 86400000.0)
+        return ageYears + fraction
+    }
+
     fun prefs(ctx: Context): SharedPreferences =
         ctx.getSharedPreferences(NAME, Context.MODE_PRIVATE)
 
@@ -106,11 +138,12 @@ object YearPrefs {
             .apply()
     }
 
-    /** 通知小组件设置已变更，立即按新设置刷新。 */
+    /** 通知小组件设置已变更，立即按新设置刷新（年度 / 人生两个小组件都要刷新）。 */
     fun notifyWidget(ctx: Context) {
-        val intent = Intent(ctx, YearProgressWidgetProvider::class.java)
-            .setAction(ACTION_SETTINGS_CHANGED)
-        ctx.sendBroadcast(intent)
+        val y = Intent(ctx, YearProgressWidgetProvider::class.java).setAction(ACTION_SETTINGS_CHANGED)
+        ctx.sendBroadcast(y)
+        val l = Intent(ctx, LifeProgressWidgetProvider::class.java).setAction(ACTION_SETTINGS_CHANGED)
+        ctx.sendBroadcast(l)
     }
 }
 

@@ -83,8 +83,9 @@ class YearProgressWidgetProvider : AppWidgetProvider() {
 
         views.setImageViewBitmap(R.id.wDots, buildDotsBitmap(dayOfYear, total, areaAspect, color))
 
-        // 点击小组件打开应用
+        // 点击小组件 → 打开 App 并自动切换到年度进度
         val openIntent = Intent(context, MainActivity::class.java)
+            .putExtra(YearPrefs.EXTRA_OPEN_MODE, YearPrefs.MODE_YEAR)
         val pi = PendingIntent.getActivity(
             context, 0, openIntent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
