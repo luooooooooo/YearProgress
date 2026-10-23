@@ -143,10 +143,10 @@ class MainActivity : Activity() {
     }
 
     /** 人生进度：年龄(10位小数) / 已过百分比 / 320季点 / 进度行 / 截止时间。
-     *  扣减口径（三个开关算法一致）：剩余寿命 = 预期寿命 − 当前年龄；
-     *  扣减 = 剩余寿命 × 比例（睡觉1/3、上班1/3、低质量15%）；
-     *  有效剩余 = 剩余寿命 − 扣减之和；点阵/已过百分比 = 当前年龄 ÷ (当前年龄 + 有效剩余)，
-     *  不开任何开关时退化为 当前年龄 ÷ 预期寿命。 */
+     *  口径：实际年龄 = 现在 − 出生（不受扣减影响）；扣减均基于真实剩余寿命
+     *  （剩余 = 预期 − 年龄；睡觉1/3、上班1/3、低质量15%，各自独立可叠加、严禁重复扣）；
+     *  已过多少年 = 实际年龄 + 扣减总额；已过百分比 = 已过 ÷ 预期寿命（封顶100%）；
+     *  点阵按该百分比填充；有效剩余 = 剩余 − 扣减之和（供「剩余」行显示）。 */
     private fun updateLife(now: Calendar) {
         val age = YearPrefs.calcAge(YearPrefs.birthday(this), now)
         val expect = YearPrefs.expect(this)
@@ -155,9 +155,10 @@ class MainActivity : Activity() {
                 (if (YearPrefs.dedWork(this)) remain / 3.0 else 0.0) +
                 (if (YearPrefs.dedLowq(this)) remain * 0.15 else 0.0)
         val effRemain = (remain - ded).coerceAtLeast(0.0)
-        val effTotal = (age + effRemain).coerceAtLeast(0.0001)
-        val pct = min(age / effTotal * 100.0, 100.0)
-        val filled = min((age / effTotal * YearPrefs.LIFE_DOT_TOTAL).roundToInt(), YearPrefs.LIFE_DOT_TOTAL)
+        // 已过多少年 = 实际年龄 + 扣减总额；百分比 = 已过 ÷ 预期寿命（封顶100%）；点阵按该百分比填充
+        val passed = age + ded
+        val pct = min(passed / expect * 100.0, 100.0)
+        val filled = min((passed / expect * YearPrefs.LIFE_DOT_TOTAL).roundToInt(), YearPrefs.LIFE_DOT_TOTAL)
 
         tvTitle.text = String.format(Locale.US, "%.10f岁", age)
         tvTitle.textSize = 28f
@@ -173,7 +174,7 @@ class MainActivity : Activity() {
 
         tvProgress.text = when (mode) {
             YearPrefs.MODE_REMAINING -> "进度 剩余 ${String.format(Locale.US, "%.2f", effRemain)} 年 / $expect 年"
-            else -> "进度 已过 ${String.format(Locale.US, "%.2f", age)} 年 / $expect 年"
+            else -> "进度 已过 ${String.format(Locale.US, "%.2f", passed)} 年 / $expect 年"
         }
 
         val sdf = SimpleDateFormat("yyyy.MM.dd HH:mm:ss", Locale.getDefault())

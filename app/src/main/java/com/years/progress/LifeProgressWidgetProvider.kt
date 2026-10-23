@@ -53,15 +53,17 @@ class LifeProgressWidgetProvider : AppWidgetProvider() {
 
         val age = YearPrefs.calcAge(YearPrefs.birthday(context), now)
         val expect = YearPrefs.expect(context)
-        // 扣减口径与 App 主界面一致：剩余寿命 = 预期−年龄；扣减 = 剩余×比例；有效剩余 = 剩余−扣减之和
+        // 口径与 App 主界面一致：扣减均基于真实剩余寿命（睡1/3、班1/3、低15%，各自独立可叠加）；
+        // 已过 = 实际年龄 + 扣减总额；百分比 = 已过 ÷ 预期寿命（封顶100%）；点阵按百分比填充；
+        // 有效剩余 = 剩余 − 扣减之和（供「剩余」行显示）
         val remain = (expect - age).coerceAtLeast(0.0)
         val ded = (if (YearPrefs.dedSleep(context)) remain / 3.0 else 0.0) +
                 (if (YearPrefs.dedWork(context)) remain / 3.0 else 0.0) +
                 (if (YearPrefs.dedLowq(context)) remain * 0.15 else 0.0)
         val effRemain = (remain - ded).coerceAtLeast(0.0)
-        val effTotal = (age + effRemain).coerceAtLeast(0.0001)
-        val pct = min(age / effTotal * 100.0, 100.0)
-        val filled = min((age / effTotal * YearPrefs.LIFE_DOT_TOTAL).roundToInt(), YearPrefs.LIFE_DOT_TOTAL)
+        val passed = age + ded
+        val pct = min(passed / expect * 100.0, 100.0)
+        val filled = min((passed / expect * YearPrefs.LIFE_DOT_TOTAL).roundToInt(), YearPrefs.LIFE_DOT_TOTAL)
 
         views.setTextViewText(R.id.wYear, String.format(Locale.US, "%.2f岁", age))
         views.setTextViewText(R.id.wPercent, "${pct.toInt()}%")
@@ -73,7 +75,7 @@ class LifeProgressWidgetProvider : AppWidgetProvider() {
             YearPrefs.MODE_REMAINING ->
                 "剩余${String.format(Locale.US, "%.2f", effRemain)}年"
             else ->
-                "已过${String.format(Locale.US, "%.2f", age)}年"
+                "已过${String.format(Locale.US, "%.2f", passed)}年"
         }
         views.setTextViewText(R.id.wDays, daysText)
         views.setTextColor(R.id.wPercent, color)
@@ -105,7 +107,7 @@ class LifeProgressWidgetProvider : AppWidgetProvider() {
         manager.updateAppWidget(widgetId, views)
     }
 
-    /** 把 320 个点画成位图：实心 = 已过（按有效寿命），灰色空心 = 剩余。
+    /** 把 320 个点画成位图：实心 = 已过（按 已过÷预期 百分比），灰色空心 = 剩余。
      *  32 列 × 10 行横向长条网格；位图宽高比 = 点阵显示区域宽高比，fitCenter 显示时圆点保持正圆。
      *  点径 = 列宽的一半（横向相邻点相切，点阵饱满）。位图体积控制在 1MB 以内。 */
     private fun buildDotsBitmap(filled: Int, areaAspect: Float, filledColor: Int): Bitmap {
